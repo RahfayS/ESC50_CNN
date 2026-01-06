@@ -85,3 +85,7 @@ Despite extensive augmentation, performance improvements eventually saturated. T
 - Temporal modeling beyond fixed-size spectrograms
 
 
+
+### How it Works
+
+![Demo](test_video/output.gif)
