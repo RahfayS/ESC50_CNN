@@ -1,0 +1,11 @@
+streamlit
+torch
+torchvision
+numpy
+matplotlib
+Pillow
+scikit-learn
+huggingface_hub
+librosa
+plotly
+scipy
