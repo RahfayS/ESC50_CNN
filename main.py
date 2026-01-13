@@ -1,147 +1,103 @@
 import streamlit as st
-import torch
-import numpy as np
-import librosa
-import plotly.express as px
-from utils.model_loader import load_model
-from utils.balanced_augmentations import Augmentations_Balanced
-from utils.acoustic_augmentations import Add_Augmentations_Acoustic
 
-# ------------------ CONFIG ------------------
-SR = 22050
-N_MELS = 128
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+st.title("ESC50 Classification: Exploring Data Augmentation Strategies using ResNet Models")
+st.markdown("""
 
-# ------------------ ESC-50 LABELS ------------------
-ESC50_CLASSES = {
-    0: "dog", 1: "rooster", 2: "pig", 3: "cow", 4: "frog",
-    5: "cat", 6: "hen", 7: "insects", 8: "sheep", 9: "crow",
-    10: "rain", 11: "sea_waves", 12: "crackling_fire", 13: "crickets",
-    14: "chirping_birds", 15: "water_drops", 16: "wind", 17: "pouring_water",
-    18: "toilet_flush", 19: "thunderstorm", 20: "crying_baby", 21: "sneezing",
-    22: "clapping", 23: "breathing", 24: "coughing", 25: "footsteps",
-    26: "laughing", 27: "brushing_teeth", 28: "snoring", 29: "drinking_sipping",
-    30: "door_wood_knock", 31: "mouse_click", 32: "keyboard_typing",
-    33: "door_wood_creaks", 34: "can_opening", 35: "washing_machine",
-    36: "vacuum_cleaner", 37: "clock_alarm", 38: "clock_tick",
-    39: "glass_breaking", 40: "helicopter", 41: "chainsaw", 42: "siren",
-    43: "car_horn", 44: "engine", 45: "train", 46: "church_bells",
-    47: "airplane", 48: "fireworks", 49: "hand_saw"
-}
+## Intro to The Project
 
-# ------------------ HELPERS ------------------
-def audio_to_mel(y, sr=SR):
-    mel = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=N_MELS)
-    mel_db = librosa.power_to_db(mel, ref=np.max)
-    return mel_db
+This is a personal project designed to explore the **ESC-50** dataset and take a look at the implementation of the most popular convolutional neural network archeitures, **ResNet** and take a look at audio form augmentation techniques
 
-def predict(model, mel):
-    model.eval()
-    with torch.no_grad():
-        x = torch.tensor(mel).unsqueeze(0).unsqueeze(0).to(DEVICE)
-        logits = model(x.float())
-        probs = torch.softmax(logits, dim=1).cpu().numpy()[0]
-    return probs
+## About the ESC50 Dataset
+
+The Dataset contains 2000 samples of 50 evenly split classes of environmental audio recordings (40 samples per class), with each recording is 5 seconds long
+
+For access to the dataset, you can clone this git repo [here](https://github.com/karolpiczak/ESC-50)
 
 
-def plot_mel(mel, title):
-    fig = px.imshow(
-        mel,
-        origin="lower",
-        aspect="auto",
-        title=title,
-        color_continuous_scale="magma"
-    )
-    fig.update_layout(height=300)
-    return fig
+| Animals | Natural soundscapes & water sounds | Human, non-speech sounds | Interior/domestic sounds | Exterior/urban noises |
+|---|---|---|---|---|
+| Dog | Rain | Crying baby | Door knock | Helicopter |
+| Rooster | Sea waves | Sneezing | Mouse click | Chainsaw |
+| Pig | Crackling fire | Sneezing | Keyboard typing | Siren |
+| Cow | Crickets | Clapping | Door, wood creaks | Car horn |
+| Frog | Chirping birds | Coughing | Can opening | Engine |
+| Cat | Water drops | Footsteps | Washing machine | Train |
+| Hen | Wind | Laughing | Vacuum cleaner | Church bells |
+| Insects (flying) | Pouring water | Brushing teeth | Clock alarm | Airplane |
+| Sheep | Toilet flush | Snoring | Clock tick | Fireworks |
+| Crow | Thunderstorm | Drinking, sipping | Glass breaking | Hand saw |
 
 
-@st.cache_resource
-def get_models():
-    acoustic = load_model("models/ResNet34_acoustic_augmentation.pth")
-    balanced = load_model("models/ResNet34_balanced_augmentation.pth")
-    return acoustic, balanced
+## Data Augmentation
+            
+The ESC50 dataset is notorious for overfitting in its baseline models. This comes as no surprise as the dataset is only 2000 samples and for 50 classes this only comes out to 40 samples per class.
+
+So my idea to tackle this issue came in the form of 2 strategies
+            
+    1. Using a deep CNN model (ResNet)
+    2. Employ data augmentation techniques to artificially increase the number of training samples
+
+In the notebook (and last page of the app) you can see the 2 techniques I used to generate artificial samples
 
 
-# ------------------ STREAMLIT APP ------------------
-def main():
-    st.set_page_config(layout="wide")
-    st.title("ESC-50 Audio Classification - Augmentation Comparison")
+## The Model (ResNet34)
+            
 
-    acoustic_model, balanced_model = get_models()
+The ResNet models are CNN's designed to handle the common issue all deep CNN's have, the vanishing gradient problem. The ResNet model is composed of:
 
-    uploaded = st.file_uploader("Upload a WAV file", type=["wav"])
+1. **Residual Blocks**  
+   - ResNet introduces *skip connections* or *residual connections*, which allow the input of a layer to bypass one or more layers and be added to the output.  
+   - Mathematically:  
+        ```
+        y = F(x) + x
+        ```
+     where \(x\) is the input, \(F(x)\) is the output of the convolutional layers, and \(y\) is the final output of the block.  
+   - This helps the network learn *residual mappings* instead of trying to learn the full transformation, which makes training deeper networks much easier.
 
-    if uploaded is None:
-        st.info("Upload an audio file to begin")
-        return
+2. **Depth and Structure**  
+   - ResNet 34 is deeper than ResNet 18, with 34 layers consisting of convolutional, batch normalization, and ReLU activation layers arranged into residual blocks.  
+   - This depth allows the model to capture more complex features from the input data while maintaining efficient gradient flow.
 
-    # Load audio
-    y, sr = librosa.load(uploaded, sr=SR)
-    st.audio(uploaded)
+3. **Global Average Pooling and Fully Connected Layer**  
+   - After passing through all the convolutional layers, ResNet applies global average pooling to reduce the spatial dimensions, followed by a fully connected layer that outputs class probabilities.
 
-    # Original mel
-    mel_orig = audio_to_mel(y)
-
-    # Predictions
-    probs_acoustic = predict(acoustic_model, mel_orig)
-    probs_balanced = predict(balanced_model, mel_orig)
-
-    pred_a = int(np.argmax(probs_acoustic))
-    pred_b = int(np.argmax(probs_balanced))
-
-    # ------------------ PREDICTIONS ------------------
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.subheader("Acoustic-Augmented Model")
-        st.success(f"Prediction: **{ESC50_CLASSES[pred_a]}**")
-        fig = px.bar(
-            x=[ESC50_CLASSES[i] for i in range(50)],
-            y=probs_acoustic,
-            labels={"x": "Class", "y": "Probability"}
-        )
-        st.plotly_chart(fig, use_container_width=True)
-
-    with col2:
-        st.subheader("Balanced-Augmented Model")
-        st.success(f"Prediction: **{ESC50_CLASSES[pred_b]}**")
-        fig = px.bar(
-            x=[ESC50_CLASSES[i] for i in range(50)],
-            y=probs_balanced,
-            labels={"x": "Class", "y": "Probability"}
-        )
-        st.plotly_chart(fig, use_container_width=True)
-
-    st.divider()
-    st.header("Augmentation Examples")
-
-    category = ESC50_CLASSES[pred_a]
-
-    # Apply augmentations
-    y_balanced = Augmentations_Balanced(y, sr)
-    y_acoustic = Add_Augmentations_Acoustic(y, sr, category)
-
-    mel_balanced = audio_to_mel(y_balanced)
-    mel_acoustic = audio_to_mel(y_acoustic)
-
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        st.subheader("Original")
-        st.audio(y, sample_rate=sr)
-        st.plotly_chart(plot_mel(mel_orig, "Original Mel"), use_container_width=True)
-
-    with col2:
-        st.subheader("Balanced Augmentation")
-        st.audio(y_balanced, sample_rate=sr)
-        st.plotly_chart(plot_mel(mel_balanced, "Balanced Augmentation"), use_container_width=True)
-
-    with col3:
-        st.subheader("Acoustic Augmentation")
-        st.audio(y_acoustic, sample_rate=sr)
-        st.plotly_chart(plot_mel(mel_acoustic, f"Acoustic ({category})"), use_container_width=True)
+4. **Advantages for Our Task**  
+   - Robust feature extraction from audio spectrograms or augmented data treated as images.  
+   - Reduces the risk of overfitting due to residual connections and batch normalization.  
+   - Supports transfer learning, meaning we can use pretrained weights on ImageNet to speed up training and improve performance on our dataset.
 
 
-if __name__ == "__main__":
-    main()
+In short, ResNet 34 is a deep CNN with skip connections that allows efficient training of very deep networks. By using it on our preprocessed and augmented data, we can extract meaningful features and improve classification performance while leveraging the benefits of transfer learning.
+
+
+
+
+
+
+
+
+
+
+
+### References
+            
+ESC-50 Dataset
+Piczak, K. ESC-50: Environment Sound Classification. GitHub repository.
+https://github.com/karolpiczak/ESC-50
+
+Understanding the Mel Spectrogram
+Analytics Vidhya. Understanding the Mel Spectrogram. Medium.
+https://medium.com/analytics-vidhya/understanding-the-mel-spectrogram-fca2afa2ce53
+
+Guide to Transfer Learning in Deep Learning
+Fagbemi, David. Guide to Transfer Learning in Deep Learning. Medium.
+https://medium.com/@davidfagb/guide-to-transfer-learning-in-deep-learning-1f685db1fc94
+
+Signal Framing and Windowing
+SuperKogito. Signal Framing and Windowing Explained. SuperKogito Blog.
+https://superkogito.github.io/blog/2020/01/25/signal_framing.html
+
+ResNet34 Intuition (Video)
+https://www.youtube.com/watch?v=KLYfwigQPuY
+
+""")
