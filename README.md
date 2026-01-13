@@ -8,7 +8,7 @@ This project trains a deep learning model to classify 50 types of environmental 
 ## Project Overview
 
 Environmental sound classification assigns semantic labels (e.g., *dog bark*, *rain*, *siren*) to short audio recordings.  
-The ESC-50 dataset contains **2,000 labeled audio clips in 50 classes** and is a common benchmark in audio classification research. :contentReference[oaicite:1]{index=1}
+The ESC-50 dataset contains **2,000 labeled audio clips in 50 classes** and is a common benchmark in audio classification research.
 
 This repository includes:
 - Preprocessing and feature extraction pipelines
@@ -89,3 +89,7 @@ Despite extensive augmentation, performance improvements eventually saturated. T
 ### How it Works
 
 ![Demo](test_video/output.gif)
+
+### Check it out
+
+![Click here to check it out on streamlit]()
