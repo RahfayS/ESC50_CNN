@@ -92,4 +92,4 @@ Despite extensive augmentation, performance improvements eventually saturated. T
 
 ### Check it out
 
-![Click here to check it out on streamlit]()
+[Check it out on streamlit](https://rahfays-esc50-cnn-main-5wfbhm.streamlit.app)
